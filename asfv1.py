@@ -607,7 +607,7 @@ class fv1parse(object):
         lfo = self.__expression__()
         if int(lfo) == lfo:
             lfo = int(lfo)
-            if lfo < 0 not in [0, 1, 2, 3, 8, 9]:
+            if lfo < 0 and not in [0, 1, 2, 3, 8, 9]:
                 self.parseerror('Invalid LFO {0:#x}'.format(lfo) + xtra)
                 lfo = 0
         else:
