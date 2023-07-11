@@ -147,6 +147,13 @@ def op_gen(mcode):
         i += 1
     return ret
 
+
+class ASFV1Error(Exception):
+    def __init__(self, error_code, message=None):
+        super().__init__(message)
+        self.code = error_code
+
+
 class fv1parse(object):
     def __init__(self, source=None, clamp=True,
                  spinreals=False, wfunc=None, efunc=None):
@@ -607,7 +614,7 @@ class fv1parse(object):
         lfo = self.__expression__()
         if int(lfo) == lfo:
             lfo = int(lfo)
-            if lfo < 0 and not in [0, 1, 2, 3, 8, 9]:
+            if lfo < 0 and lfo not in [0, 1, 2, 3, 8, 9]:
                 self.parseerror('Invalid LFO {0:#x}'.format(lfo) + xtra)
                 lfo = 0
         else:
@@ -856,8 +863,9 @@ class fv1parse(object):
         self.doerror('scan error: ' + msg + ' on line {}'.format(self.sline))
         self.ecount += 1
         if self.ecount > MAXERR:
-            self.doerror('too many errors, aborting.')
-            sys.exit(-1)
+            error_msg = 'too many errors, aborting.'
+            self.doerror(error_msg)
+            raise ASFV1Error(-1, message=error_msg)
 
     def parsewarn(self, msg, line=None):
         """Emit parse warning."""
@@ -872,8 +880,9 @@ class fv1parse(object):
         self.doerror('parse error: {} on line {}'.format(msg, line))
         self.ecount += 1
         if self.ecount > MAXERR:
-            self.doerror('too many errors, aborting.')
-            sys.exit(-2)
+            error_msg = 'too many errors, aborting.'
+            self.doerror(error_msg)
+            raise ASFV1Error(-2, message=error_msg)
 
     def __accept__(self,stype,message=None):
         """Accept the next symbol if type matches stype."""
@@ -1014,9 +1023,9 @@ class fv1parse(object):
             self.pl.append({'cmd':['RAW', mark],'addr':self.icnt})
             self.icnt += 1
         else:
-            self.parseerror('Unexpected instruction {}'.format(
-                             self.sym['txt']))
-            sys.exit(-4) # this is a major program error
+            error_msg = 'Unexpected instruction {}'.format(self.sym['txt'])
+            self.parseerror(error_msg)
+            raise ASFV1Error(-4, message=error_msg) # this is a major program error
         
         if self.sym['type'] == 'ARGSEP':
             self.parseerror('Excess operands skipped for ' + mnemonic)
@@ -1323,8 +1332,9 @@ class fv1parse(object):
                 else:
                     pass	# assume offset is immediate
         if self.ecount > 0:
-            self.doerror('errors in input, assembly aborted')
-            sys.exit(-3)
+            error_msg = 'errors in input, assembly aborted'
+            self.doerror(error_msg)
+            raise ASFV1Error(-3, message=error_msg)
         self.__mkopcodes__()
 
 def main():
@@ -1381,8 +1391,11 @@ def main():
     fp = fv1parse(inbuf.decode(encoding,'replace'),
                   clamp=args.clamp, spinreals=args.spinreals,
                   wfunc=dowarn, efunc=error)
-    fp.parse()
-    
+    try:
+        fp.parse()
+    except ASFV1Error as e:
+        sys.exit(e.code)
+
     ofile = None
     try:
         ofile = open(args.outfile, 'r+b')	# existing file
